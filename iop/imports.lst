@@ -1,7 +1,14 @@
 cdvdman_IMPORTS_start
 I_sceCdDiskReady
+I_sceCdInit
+I_sceCdMmode
 I_sceCdRead
+I_sceCdReadDVDV
 I_sceCdSeek
+I_sceCdStInit
+I_sceCdStRead
+I_sceCdStStart
+I_sceCdStStop
 I_sceCdSync
 cdvdman_IMPORTS_end
 

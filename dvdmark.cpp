@@ -35,6 +35,9 @@ int main(int argc, char* argv[])
 {
 	SifInitRpc(0);
 	SifLoadFileInit();
+
+	//printf("Loading xcdvdman\n");
+	//printf("xcdvdman id = %d\n", SifLoadModule("rom:XCDVDMAN", 0, NULL));
 	sceCdInit(SCECdINIT);
 	while(1)
 	{

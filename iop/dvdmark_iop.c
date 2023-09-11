@@ -6,46 +6,72 @@
 #define IOP_T4_COUNT *(u32 *)0x1F801490
 #define IOP_T4_MODE *(u16 *)0x1F801494
 #define IOP_T4_TARGET *(u32 *)0x1F801498
+
+unsigned char  ring_buf[2048 * 200] __attribute__((aligned (8)));
+unsigned char  buf[2048 * 200] __attribute__((aligned (8)));
 void test_thread(void *arg)
 {
 	printf("[iop] Testing thread begin\n");
 
 	printf("[iop] Firing up the timer. 1/16 scaler\n");
 	IOP_T4_MODE = 2 << 13;
-	u8 *megBlock = AllocSysMemory(0, 1024 * 1024, NULL);
-	printf("[iop] Memory block is at %p\n", megBlock);
 
 	printf("[iop] assuming 2_200_000 sectors are on the disc with a sector size of 2048 bytes\n");
 
-	sceCdRMode readMode;
+	sceCdRMode readMode __attribute__((aligned (8)));
 	readMode.trycount = 0;
-	printf("[iop] setting up read mode (spinnom 1)\n");
-	readMode.spindlctrl = 1;
+	printf("[iop] setting up read mode (SCECdSpinNom 1)\n");
+	readMode.spindlctrl = SCECdSpinNom;
 	readMode.datapattern = 0;
+	readMode.pad = 0;
 
-	sceCdDiskReady(0);
+	sceCdInit(SCECdINIT);
 	sceCdSync(0);
+
+	sceCdMmode(SCECdMmodeDvd);
+	sceCdSync(0);
+
+	printf("Waiting for the disk to be ready\n");
+	while(sceCdDiskReady(0) == SCECdNotReady)
+	{
+		asm volatile("nop");
+	}
+	printf("Disk is ready\n");
 
 	sceCdSeek(0);
 	sceCdSync(0);
 	
-	int sectorSize = 2048;
+	sceCdStInit(200, 5, ring_buf);
+	sceCdSync(0);
+
+	printf("Starting stream\n");
+	sceCdStStart(0 , &readMode);
+//	printf("syncing\n");
+//	sceCdSync(0);
+	printf("Manually waiting...\n");
+	for(int i = 0; i < 10000000; i++)
+		asm volatile("nop");
+
+	printf("Begin read block\n");
 	int totalSectors = 2200000;
-	int blockSize = (1024 * 1024) / sectorSize;
-	for (int lbn = 0; lbn < totalSectors; lbn += blockSize)
+	int blockSize = 200;
+	for (int lbn = 0; lbn < totalSectors;)
 	{
 		IOP_T4_COUNT = 0;
 		u32 cnt_start = IOP_T4_COUNT;
-		sceCdRead(lbn,blockSize, megBlock, &readMode);
-		sceCdSync(0);
+		u32 error;
+		u32 sectors_read = sceCdStRead(blockSize, (u32*)buf, STMNBLK, &error);
+		
+		if(sectors_read != blockSize || error)
+			printf("Read %d sectors (err %d) at lbn %d\n", sectors_read, error, lbn);
 		u32 cnt_end = IOP_T4_COUNT;
 		u32 cnt_total = cnt_end - cnt_start;
 		printf("%d,%d\n", lbn, cnt_total);
+		lbn += sectors_read;
 	}
 
 	printf("[iop]finished\n");
-
-	FreeSysMemory(megBlock);
+	sceCdStStop();
 }
 
 int _start(int argc, char **argv)
